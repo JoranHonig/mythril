@@ -1,4 +1,5 @@
-from z3 import is_true
+from z3 import is_true, Not, simplify
+from mythril.analysis.modules import try_constraints
 """
 MODULE DESCRIPTION:
 
@@ -13,14 +14,20 @@ def execute(statespace):
     :param statespace: Statespace to analyse
     :return: Found issues
     """
+    jumpi_instructions = _find_jumpi(statespace)
+    jumpi_conditions = _get_conditions_for_jumpi(jumpi_instructions)
 
+    for address, conditions in jumpi_conditions.items():
+        if _all_conditions_true(conditions):
+            print(address)
     return []
 
 
 def _find_jumpi(statespace):
     """ Finds all jumpi instructions and returns their states as a generator """
-    for node in statespace:
-        for state in node:
+    for k in statespace.nodes:
+        node = statespace.nodes[k]
+        for state in node.states:
             if state.get_current_instruction()['opcode'] == "JUMPI":
                 yield state, node
 
@@ -50,4 +57,7 @@ def _all_conditions_true( conditions ):
     :param conditions: Array of (constraint, condition_value) elements
     :return: all conditions simplify to true
     """
-    pass
+    for constraints, value in conditions:
+        if try_constraints(constraints, [value]):
+            return False
+    return True
