@@ -58,6 +58,7 @@ def _all_conditions_true( conditions ):
     :return: all conditions simplify to true
     """
     for constraints, value in conditions:
+        # Note that the condition for the jump
         if try_constraints(constraints, [value]):
             return False
     return True
