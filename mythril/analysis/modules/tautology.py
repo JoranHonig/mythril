@@ -1,7 +1,5 @@
 from z3 import is_true, is_false, Not, simplify
 from mythril.analysis.report import Issue
-
-from mythril.analysis.modules import try_constraints
 """
 MODULE DESCRIPTION:
 
@@ -64,7 +62,7 @@ def _get_conditions_for_jumpi(jumpi_states):
 
 def _all_conditions_same(conditions):
     """
-    Verifies if all conditions always evaluate to true
+    Verifies if all conditions always evaluate to the same
     :param conditions: Array of (constraint, condition_value) elements
     :return: all conditions simplify to true
     """
