@@ -1,4 +1,6 @@
-from z3 import is_true, Not, simplify
+from z3 import is_true, is_false, Not, simplify
+from mythril.analysis.report import Issue
+
 from mythril.analysis.modules import try_constraints
 """
 MODULE DESCRIPTION:
@@ -14,13 +16,21 @@ def execute(statespace):
     :param statespace: Statespace to analyse
     :return: Found issues
     """
+    issues = []
     jumpi_instructions = _find_jumpi(statespace)
     jumpi_conditions = _get_conditions_for_jumpi(jumpi_instructions)
 
     for address, conditions in jumpi_conditions.items():
-        if _all_conditions_true(conditions):
-            print(address)
-    return []
+        if not _all_conditions_same(conditions):
+            continue
+
+        value, node, state = conditions[0]
+
+        issue = Issue(node.contract_name, node.function_name, address, "Tautology", "Informational")
+        issue.description = "Found a conditional jump which always follows the same branch"
+        issues.append(issue)
+
+    return issues
 
 
 def _find_jumpi(statespace):
@@ -41,24 +51,26 @@ def _get_conditions_for_jumpi(jumpi_states):
     result = {}
     for jumpi_state, node in jumpi_states:
         instruction = jumpi_state.get_current_instruction()
+
         key = instruction['address']
-        constraint, value = node.constraints, jumpi_state.mstate.stack[-2]
+        value = jumpi_state.mstate.stack[-2]
+
         if key not in result.keys():
             result[key] = []
-
-        result[key] += [(constraint, value)]
+        result[key] += [(value, node, jumpi_state)]
 
     return result
 
 
-def _all_conditions_true( conditions ):
+def _all_conditions_same(conditions):
     """
     Verifies if all conditions always evaluate to true
     :param conditions: Array of (constraint, condition_value) elements
     :return: all conditions simplify to true
     """
-    for constraints, value in conditions:
-        # Note that the condition for the jump
-        if try_constraints(constraints, [value]):
-            return False
-    return True
+    _false, _true = False, False
+    for value, _, _ in conditions:
+        _false = _false or is_false(simplify(value))
+        _true = _true or is_true(simplify(value))
+
+    return _false ^ _true
