@@ -18,17 +18,31 @@ def execute(statespace):
 
 
 def _find_jumpi(statespace):
-    """ Finds all jumpi instructions and returns their states """
-    pass
+    """ Finds all jumpi instructions and returns their states as a generator """
+    for node in statespace:
+        for state in node:
+            if state.get_current_instruction()['opcode'] == "JUMPI":
+                yield state, node
 
 
 def _get_conditions_for_jumpi(jumpi_states):
     """
-    Returns a dictonary for each reachable jumpi instruction with
+    Returns a dictionary for each reachable jumpi instruction with
     key: address
     value: (constraints,condition_value)
     """
-    pass
+    result = {}
+    for jumpi_state, node in jumpi_states:
+        instruction = jumpi_state.get_current_instruction()
+        key = instruction['address']
+        constraint, value = node.constraints, jumpi_state.mstate.stack[-2]
+        if key not in result.keys():
+            result[key] = []
+
+        result[key] += [(constraint, value)]
+
+    return result
+
 
 def _all_conditions_true( conditions ):
     """
