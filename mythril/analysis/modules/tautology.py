@@ -14,7 +14,7 @@ def execute(statespace):
     :return: Found issues
     """
 
-    pass
+    return []
 
 
 def _find_jumpi(statespace):

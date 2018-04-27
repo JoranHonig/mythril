@@ -3,6 +3,7 @@ from mythril.analysis import solver
 from mythril.analysis.ops import *
 from mythril.analysis.report import Issue
 from mythril.exceptions import UnsatError
+from mythril.analysis.modules import try_constraints
 import re
 import copy
 import logging
@@ -70,7 +71,7 @@ def _check_integer_overflow(statespace, state, node):
 
     # Check satisfiable
     constraint = Or(ULT(expr, op0), ULT(expr, op1))
-    model = _try_constraints(node.constraints, [constraint])
+    model = try_constraints(node.constraints, [constraint])
 
     if model is None:
         logging.debug("[INTEGER_OVERFLOW] no model found")
@@ -105,11 +106,11 @@ def _verify_integer_overflow(statespace, node, expr, state, model, constraint, o
 
     if type(op0) is not int:
         op0_value = int(str(model.eval(op0, model_completion=True)))
-        model0 = _try_constraints(node.constraints, [constraint, op0 != op0_value])
+        model0 = try_constraints(node.constraints, [constraint, op0 != op0_value])
 
     if type(op1) is not int:
         op1_value = int(str(model.eval(op1, model_completion=True)))
-        model1 = _try_constraints(node.constraints, [constraint, op1 != op1_value])
+        model1 = try_constraints(node.constraints, [constraint, op1 != op1_value])
 
     if model0 is None and model1 is None:
         return False
@@ -117,19 +118,7 @@ def _verify_integer_overflow(statespace, node, expr, state, model, constraint, o
     return True
 
 
-def _try_constraints(constraints, new_constraints):
-    """
-    Tries new constraints
-    :return Model if satisfiable otherwise None
-    """
-    _constraints = copy.deepcopy(constraints)
-    for constraint in new_constraints:
-        _constraints.append(copy.deepcopy(constraint))
-    try:
-        model = solver.get_model(_constraints)
-        return model
-    except UnsatError:
-        return None
+
 
 
 def _check_integer_underflow(statespace, state, node):
