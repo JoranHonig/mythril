@@ -3,7 +3,7 @@ from mythril.analysis.report import Issue
 """
 MODULE DESCRIPTION:
 
-Test to find tautologies in code i.e. conditional branches that are always taken
+Test to find invariant branch conditions in code i.e. conditional branches that are always taken
 
 """
 
@@ -24,7 +24,7 @@ def execute(statespace):
 
         value, node, state = conditions[0]
 
-        issue = Issue(node.contract_name, node.function_name, address, "Tautology", "Informational")
+        issue = Issue(node.contract_name, node.function_name, address, "Invariant branch condition", "Informational")
         issue.description = "Found a conditional jump which always follows the same branch"
         issues.append(issue)
 
