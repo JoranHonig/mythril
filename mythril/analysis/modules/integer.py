@@ -63,11 +63,17 @@ def _check_integer_overflow(statespace, state, node):
     if not (type(op0) in allowed_types and type(op1) in allowed_types):
         return issues
 
+    # Change ints to BitVec
+    if type(op0) is int:
+        op0 = BitVecVal(op0, 256)
+    if type(op1) is int:
+        op1 = BitVecVal(op1, 256)
+
     # Formulate expression
     if instruction['opcode'] == "ADD":
         expr = op0 + op1
     else:
-        expr = op0 * op1
+        expr = op1 * op0
 
     # Check satisfiable
     constraint = Or(ULT(expr, op0), ULT(expr, op1))
@@ -167,7 +173,7 @@ def _check_integer_underflow(statespace, state, node):
                 # If we get to this point then there has been an integer overflow
                 # Find out if the overflowed value is actually used
                 interesting_usages = _search_children(statespace, node, (op0 - op1), index=node.states.index(state))
-                logging.info(interesting_usages)
+                logging.debug(interesting_usages)
 
                 # Stop if it isn't
                 if len(interesting_usages) == 0:
@@ -199,20 +205,23 @@ def _check_usage(state, expression):
             return [state]
     return []
 
+
 def _check_taint(statement, expression):
     """Checks if statement is influenced by tainted expression"""
-    found = str(expression) in str(statement)
+    _expression, _statement = str(expression).replace(' ', ''), str(statement).replace(' ', '')
+    found = _expression in _statement
 
     if found:
-        i = str(statement).index(str(expression))
-        char = str(statement)[i - 1]
+        i = _statement.index(_expression)
+        char = _statement[i - 1]
         if char == '_':
             return False
     return found
 
+
 def _check_jumpi(state, expression):
     """ Check if conditional jump is dependent on the result of expression"""
-    logging.info(state.get_current_instruction()['opcode'])
+    logging.debug(state.get_current_instruction()['opcode'])
     assert state.get_current_instruction()['opcode'] == 'JUMPI'
     condition = state.mstate.stack[-2]
     return _check_taint(condition, expression)
@@ -220,10 +229,11 @@ def _check_jumpi(state, expression):
 
 def _check_sstore(state, expression):
     """ Check if store operation is dependent on the result of expression"""
-    logging.info(state.get_current_instruction()['opcode'])
+    logging.debug(state.get_current_instruction()['opcode'])
     assert state.get_current_instruction()['opcode'] == 'SSTORE'
     value = state.mstate.stack[-2]
     return _check_taint(value, expression)
+
 
 def _search_children(statespace, node, expression, index=0, depth=0, max_depth=64):
     """
