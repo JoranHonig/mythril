@@ -5,7 +5,7 @@ from copy import copy, deepcopy
 import ethereum.opcodes as opcodes
 from ethereum import utils
 from z3 import Extract, UDiv, simplify, Concat, ULT, UGT, BitVecNumRef, Not, \
-    is_false, is_expr, ExprRef, URem, SRem
+    is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, sat
 from z3 import BitVecVal, If, BoolRef
 
 import mythril.laser.ethereum.util as helper
@@ -14,10 +14,11 @@ from mythril.laser.ethereum.call import get_call_parameters
 from mythril.laser.ethereum.state import GlobalState, MachineState, Environment, CalldataType
 import mythril.laser.ethereum.natives as natives
 from mythril.laser.ethereum.transaction import MessageCallTransaction, TransactionEndSignal, TransactionStartSignal, ContractCreationTransaction
-
+from mythril.laser.ethereum.keccak import KeccacFunctionManager
 TT256 = 2 ** 256
 TT256M1 = 2 ** 256 - 1
 
+keccak_function_manager: KeccacFunctionManager = KeccacFunctionManager()
 
 class StackUnderflowException(Exception):
     pass
@@ -341,12 +342,12 @@ class Instruction:
         except AttributeError:
             logging.debug("CALLDATALOAD: Unsupported symbolic index")
             state.stack.append(global_state.new_bitvec(
-                "calldata_" + str(environment.active_account.contract_name) + str(len(global_state.current_transaction.caller)) +"[" + str(simplify(op0)) + "]", 256))
+                "calldata_" + str(environment.active_account.contract_name) + "[" + str(simplify(op0)) + "]", 256))
             return [global_state]
         except IndexError:
             logging.debug("Calldata not set, using symbolic variable instead")
             state.stack.append(global_state.new_bitvec(
-                "calldata_" + str(environment.active_account.contract_name) +str(global_state.current_transaction.caller)+ "[" + str(simplify(op0)) + "]", 256))
+                "calldata_" + str(environment.active_account.contract_name) + "[" + str(simplify(op0)) + "]", 256))
             return [global_state]
 
         if type(b) == int:
@@ -482,6 +483,8 @@ class Instruction:
 
     @instruction
     def sha3_(self, global_state):
+        global keccak_function_manager
+
         state = global_state.mstate
         environment = global_state.environment
         op0, op1 = state.stack.pop(), state.stack.pop()
@@ -493,7 +496,7 @@ class Instruction:
             # Can't access symbolic memory offsets
             if is_expr(op0):
                 op0 = simplify(op0)
-            state.stack.append(global_state.new_bitvec("KECCAC_mem[" + str(op0) + "]", 256))
+            state.stack.append(BitVec("KECCAC_mem[" + str(op0) + "]", 256))
             return [global_state]
 
         try:
@@ -504,12 +507,11 @@ class Instruction:
                 i += 1
             # FIXME: broad exception catch
         except:
+            argument = str(state.memory[index]).replace(" ", "_")
 
-            svar = str(state.memory[index])
-
-            svar = svar.replace(" ", "_")
-
-            state.stack.append(global_state.new_bitvec("keccac_" + svar, 256))
+            result = BitVec("KECCAC[{}]".format(argument), 256)
+            keccak_function_manager.add_keccak(result, state.memory[index])
+            state.stack.append(result)
             return [global_state]
 
         keccac = utils.sha3(utils.bytearray_to_bytestr(data))
@@ -734,19 +736,38 @@ class Instruction:
         try:
             index = util.get_concrete_int(index)
         except AttributeError:
-            index = str(index)
+            is_keccak = keccak_function_manager.is_keccac(index)
+            if not is_keccak:
+                return self._sload_helper(global_state, str(index))
 
+            storage_keys = global_state.environment.active_account.storage.keys()
+            keccak_keys = filter(keccak_function_manager.is_keccac, storage_keys)
+
+            solver = Solver()
+            solver.set(timeout=1000)
+            for keccak_key in keccak_keys:
+                key_argument = keccak_function_manager.get_argument(keccak_key)
+                index_argument = keccak_function_manager.get_argument(index)
+                solver.append(key_argument == index_argument)
+                if solver.check() == sat:
+                    return self._sload_helper(global_state, keccak_key)
+
+            return self._sload_helper(global_state, str(index))
+        return self._sload_helper(global_state, str(index))
+
+    def _sload_helper(self, global_state, index):
         try:
             data = global_state.environment.active_account.storage[index]
         except KeyError:
             data = global_state.new_bitvec("storage_" + str(index), 256)
             global_state.environment.active_account.storage[index] = data
 
-        state.stack.append(data)
+        global_state.mstate.stack.append(data)
         return [global_state]
 
     @instruction
     def sstore_(self, global_state):
+        global keccak_function_manager
         state = global_state.mstate
         index, value = state.stack.pop(), state.stack.pop()
 
@@ -754,9 +775,26 @@ class Instruction:
 
         try:
             index = util.get_concrete_int(index)
+            return self._sstore_helper(global_state, index, value)
         except AttributeError:
-            index = str(index)
+            is_keccak = keccak_function_manager.is_keccac(index)
+            if not is_keccak:
+                return self._sstore_helper(global_state, str(index), value)
 
+            storage_keys = global_state.environment.active_account.storage.keys()
+            keccak_keys = filter(keccak_function_manager.is_keccac, storage_keys)
+
+            solver = Solver()
+            solver.set(timeout=1000)
+            for keccak_key in keccak_keys:
+                key_argument = keccak_function_manager.get_argument(keccak_key)
+                index_argument = keccak_function_manager.get_argument(index)
+                solver.append(key_argument == index_argument)
+                if solver.check() == sat:
+                    return self._sstore_helper(global_state, keccak_key, value)
+            return self._sstore_helper(global_state, str(index), value)
+
+    def _sstore_helper(self, global_state, index, value):
         try:
             global_state.environment.active_account = deepcopy(global_state.environment.active_account)
             global_state.accounts[

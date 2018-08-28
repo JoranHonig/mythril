@@ -76,6 +76,8 @@ def _check_integer_overflow(statespace, state, node):
     # Check satisfiable
     constraint = Or(And(ULT(expr, op0), op1 != 0), And(ULT(expr, op1), op0 != 0))
     model = _try_constraints(node.constraints, [constraint])
+    if 'calldata_' in str(expr):
+        print(expr)
 
     if model is None:
         logging.debug("[INTEGER_OVERFLOW] no model found")

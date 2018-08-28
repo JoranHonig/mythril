@@ -86,6 +86,9 @@ class LaserEVM:
             self.time = datetime.now()
             execute_message_call(self, created_account.address)
 
+            self.time = datetime.now()
+            execute_message_call(self, created_account.address)
+
         logging.info("Finished symbolic execution")
         logging.info("%d nodes, %d edges, %d total states", len(self.nodes), len(self.edges), self.total_states)
         for code, coverage in self.coverage.items():
