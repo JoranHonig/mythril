@@ -5,7 +5,7 @@ from copy import copy, deepcopy
 import ethereum.opcodes as opcodes
 from ethereum import utils
 from z3 import Extract, UDiv, simplify, Concat, ULT, UGT, BitVecNumRef, Not, \
-    is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, sat
+    is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, sat, is_true
 from z3 import BitVecVal, If, BoolRef
 
 import mythril.laser.ethereum.util as helper
@@ -741,7 +741,7 @@ class Instruction:
                 return self._sload_helper(global_state, str(index))
 
             storage_keys = global_state.environment.active_account.storage.keys()
-            keccak_keys = filter(keccak_function_manager.is_keccac, storage_keys)
+            keccak_keys = list(filter(keccak_function_manager.is_keccac, storage_keys))
 
             solver = Solver()
             solver.set(timeout=1000)
@@ -749,28 +749,49 @@ class Instruction:
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
-                solver.append(key_argument == index_argument)
-                if solver.check() == sat:
-                    results += self._sload_helper(copy(global_state), keccak_key)
+
+                if is_true(key_argument == index_argument):
+                    return self._sload_helper(global_state, keccak_key)
+                # list(self._get_constraints(keccak_keys, keccak_key, index_argument)) +
+                constraints = [key_argument == index_argument]
+                if constraints[0] in state.constraints:
+                    print("ahoi")
+                solver.append(constraints + state.constraints)
+                satif = solver.check()
                 solver.reset()
-                solver.append(key_argument != index_argument)
-                if solver.check() == sat:
-                    results += self._sload_helper(copy(global_state), str(index))
-                solver.reset()
+                if satif == sat:
+                    results += self._sload_helper(copy(global_state), keccak_key, constraints)
+                else:
+                    print("unsat")
+
+            # results += self._sload_helper(copy(global_state), str(index))
+
             if len(results) > 0:
                 return results
             return self._sload_helper(global_state, str(index))
+
         return self._sload_helper(global_state, str(index))
 
-    def _sload_helper(self, global_state, index):
+    def _sload_helper(self, global_state, index, constraints=None):
         try:
             data = global_state.environment.active_account.storage[index]
         except KeyError:
             data = global_state.new_bitvec("storage_" + str(index), 256)
             global_state.environment.active_account.storage[index] = data
 
+        if constraints is not None:
+            global_state.mstate.constraints += constraints
+
         global_state.mstate.stack.append(data)
         return [global_state]
+
+    def _get_constraints(self, keccac_keys, this_key, argument):
+        global keccak_function_manager
+        for keccac_key in keccac_keys:
+            if keccac_key == this_key:
+                continue
+            keccac_argument = keccak_function_manager.get_argument(keccac_key)
+            yield keccac_argument != argument
 
     @instruction
     def sstore_(self, global_state):
@@ -794,24 +815,32 @@ class Instruction:
             solver = Solver()
             solver.set(timeout=1000)
             results = []
+            new = False
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
-                solver.append(key_argument == index_argument)
-                if solver.check() == sat:
-                    results += self._sstore_helper(copy(global_state), keccak_key, value)
-                solver.reset()
-                solver.append(key_argument != index_argument)
-                if solver.check() == sat:
-                    results += self._sstore_helper(copy(global_state), str(index), value)
-                solver.reset()
 
+                if is_true(key_argument == index_argument):
+                    return self._sstore_helper(copy(global_state), keccak_key, value)
+
+                results += self._sstore_helper(copy(global_state), keccak_key, value, key_argument == index_argument)
+
+                if not new:
+                    solver.append(key_argument != index)
+                    solver.append(state.constraints)
+                    if solver.check() == sat:
+                        new = True
+                    solver.reset()
+
+            if new:
+                # pass
+                results += self._sstore_helper(copy(global_state), str(index), value)
             if len(results) > 0:
                 return results
 
         return self._sstore_helper(global_state, str(index), value)
 
-    def _sstore_helper(self, global_state, index, value):
+    def _sstore_helper(self, global_state, index, value, constraint=None):
         try:
             global_state.environment.active_account = deepcopy(global_state.environment.active_account)
             global_state.accounts[
@@ -820,6 +849,10 @@ class Instruction:
             global_state.environment.active_account.storage[index] = value
         except KeyError:
             logging.debug("Error writing to storage: Invalid index")
+
+        if constraint is not None:
+            global_state.mstate.constraints.append(constraint)
+
         return [global_state]
 
     @instruction
