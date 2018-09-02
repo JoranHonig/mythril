@@ -743,28 +743,22 @@ class Instruction:
             storage_keys = global_state.environment.active_account.storage.keys()
             keccak_keys = list(filter(keccak_function_manager.is_keccac, storage_keys))
 
-            solver = Solver()
-            solver.set(timeout=1000)
             results = []
+            constraints = []
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
 
-                if is_true(key_argument == index_argument):
-                    return self._sload_helper(global_state, keccak_key)
-                # list(self._get_constraints(keccak_keys, keccak_key, index_argument)) +
-                constraints = [key_argument == index_argument]
-                if constraints[0] in state.constraints:
-                    print("ahoi")
-                solver.append(constraints + state.constraints)
-                satif = solver.check()
-                solver.reset()
-                if satif == sat:
-                    results += self._sload_helper(copy(global_state), keccak_key, constraints)
-                else:
-                    print("unsat")
+                constraints.append((keccak_key, key_argument == index_argument))
 
-            # results += self._sload_helper(copy(global_state), str(index))
+            # for (keccak_key, constraint) in constraints:
+            #     if constraint not in state.constraints:
+            #         continue
+            #     results += self._sload_helper(global_state, keccak_key)
+            # if len(results) > 0:
+            #     return results
+            for (keccak_key, constraint) in constraints:
+                results += self._sload_helper(copy(global_state), keccak_key, [constraint])
 
             if len(results) > 0:
                 return results

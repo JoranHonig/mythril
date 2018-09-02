@@ -51,6 +51,9 @@ def _check_integer_overflow(statespace, state, node):
     if instruction['opcode'] not in ("ADD", "MUL"):
         return issues
 
+    # if instruction['address'] == 519:
+    #     print("wh")
+
     # Formulate overflow constraints
     stack = state.mstate.stack
     op0, op1 = stack[-1], stack[-2]
@@ -76,8 +79,8 @@ def _check_integer_overflow(statespace, state, node):
     # Check satisfiable
     constraint = Or(And(ULT(expr, op0), op1 != 0), And(ULT(expr, op1), op0 != 0))
     model = _try_constraints(node.constraints, [constraint])
-    if 'calldata_' in str(expr):
-        print(expr)
+    # if 'calldata_' in str(expr):
+    #     print(expr)
 
     if model is None:
         logging.debug("[INTEGER_OVERFLOW] no model found")
@@ -87,6 +90,7 @@ def _check_integer_overflow(statespace, state, node):
         return issues
 
     # Build issue
+    print(expr)
     issue = Issue(node.contract_name, node.function_name, instruction['address'], "Integer Overflow", "Warning")
 
     issue.description = "A possible integer overflow exists in the function `{}`.\n" \
