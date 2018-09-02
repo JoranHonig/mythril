@@ -70,7 +70,11 @@ class LaserEVM:
             execute_message_call(self, main_address)
         elif creation_code:
             logging.info("Starting contract creation transaction")
+<<<<<<< Updated upstream
             created_account = execute_contract_creation(self, creation_code, contract_name)
+=======
+            created_account, creator = execute_contract_creation(self, creation_code)
+>>>>>>> Stashed changes
             logging.info("Finished contract creation, found {} open states".format(len(self.open_states)))
             if len(self.open_states) == 0:
                 logging.warning("No contract was created during the execution of contract creation "
@@ -81,10 +85,10 @@ class LaserEVM:
 
             self.time = datetime.now()
             logging.info("Starting message call transaction")
-            execute_message_call(self, created_account.address)
+            execute_message_call(self, created_account.address, creator)
 
             self.time = datetime.now()
-            execute_message_call(self, created_account.address)
+            execute_message_call(self, created_account.address, creator)
 
         logging.info("Finished symbolic execution")
         logging.info("%d nodes, %d edges, %d total states", len(self.nodes), len(self.edges), self.total_states)

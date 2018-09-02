@@ -745,13 +745,20 @@ class Instruction:
 
             solver = Solver()
             solver.set(timeout=1000)
+            results = []
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
                 solver.append(key_argument == index_argument)
                 if solver.check() == sat:
-                    return self._sload_helper(global_state, keccak_key)
-
+                    results += self._sload_helper(copy(global_state), keccak_key)
+                solver.reset()
+                solver.append(key_argument != index_argument)
+                if solver.check() == sat:
+                    results += self._sload_helper(copy(global_state), str(index))
+                solver.reset()
+            if len(results) > 0:
+                return results
             return self._sload_helper(global_state, str(index))
         return self._sload_helper(global_state, str(index))
 
@@ -786,13 +793,23 @@ class Instruction:
 
             solver = Solver()
             solver.set(timeout=1000)
+            results = []
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
                 solver.append(key_argument == index_argument)
                 if solver.check() == sat:
-                    return self._sstore_helper(global_state, keccak_key, value)
-            return self._sstore_helper(global_state, str(index), value)
+                    results += self._sstore_helper(copy(global_state), keccak_key, value)
+                solver.reset()
+                solver.append(key_argument != index_argument)
+                if solver.check() == sat:
+                    results += self._sstore_helper(copy(global_state), str(index), value)
+                solver.reset()
+
+            if len(results) > 0:
+                return results
+
+        return self._sstore_helper(global_state, str(index), value)
 
     def _sstore_helper(self, global_state, index, value):
         try:
