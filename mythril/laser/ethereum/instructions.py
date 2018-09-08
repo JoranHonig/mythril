@@ -6,7 +6,7 @@ import ethereum.opcodes as opcodes
 from ethereum import utils
 from z3 import Extract, UDiv, simplify, Concat, ULT, UGT, BitVecNumRef, Not, \
     is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, sat, is_true
-from z3 import BitVecVal, If, BoolRef
+from z3 import BitVecVal, If, BoolRef, Or
 
 import mythril.laser.ethereum.util as helper
 from mythril.laser.ethereum import util
@@ -756,7 +756,7 @@ class Instruction:
 
             for (keccak_key, constraint) in constraints:
                 if constraint in state.constraints:
-                    results += self._sload_helper(global_state, keccak_key)
+                    results += self._sload_helper(global_state, keccak_key, [constraint])
             if len(results) > 0:
                 return results
 
@@ -822,17 +822,12 @@ class Instruction:
 
                 results += self._sstore_helper(copy(global_state), keccak_key, value, key_argument == index_argument)
 
-                if not new:
-                    solver.append(key_argument != index)
-                    solver.append(state.constraints)
-                    if solver.check() == sat:
-                        new = True
-                    solver.reset()
+                new = Or(new, key_argument != index_argument)
 
-            if new:
-                results += self._sstore_helper(copy(global_state), str(index), value)
             if len(results) > 0:
+                results += self._sstore_helper(copy(global_state), str(index), value, new)
                 return results
+
             return self._sstore_helper(global_state, str(index), value)
 
     def _sstore_helper(self, global_state, index, value, constraint=None):
