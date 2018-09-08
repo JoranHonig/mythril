@@ -14,11 +14,11 @@ from mythril.laser.ethereum.call import get_call_parameters
 from mythril.laser.ethereum.state import GlobalState, MachineState, Environment, CalldataType
 import mythril.laser.ethereum.natives as natives
 from mythril.laser.ethereum.transaction import MessageCallTransaction, TransactionEndSignal, TransactionStartSignal, ContractCreationTransaction
-from mythril.laser.ethereum.keccak import KeccacFunctionManager
+from mythril.laser.ethereum.keccak import KeccakFunctionManager
 TT256 = 2 ** 256
 TT256M1 = 2 ** 256 - 1
 
-keccak_function_manager: KeccacFunctionManager = KeccacFunctionManager()
+keccak_function_manager: KeccakFunctionManager = KeccakFunctionManager()
 
 class StackUnderflowException(Exception):
     pass
@@ -514,10 +514,10 @@ class Instruction:
             state.stack.append(result)
             return [global_state]
 
-        keccac = utils.sha3(utils.bytearray_to_bytestr(data))
-        logging.debug("Computed SHA3 Hash: " + str(binascii.hexlify(keccac)))
+        keccak = utils.sha3(utils.bytearray_to_bytestr(data))
+        logging.debug("Computed SHA3 Hash: " + str(binascii.hexlify(keccak)))
 
-        state.stack.append(BitVecVal(util.concrete_int_from_bytes(keccac, 0), 256))
+        state.stack.append(BitVecVal(util.concrete_int_from_bytes(keccak, 0), 256))
         return [global_state]
 
     @instruction
@@ -729,43 +729,43 @@ class Instruction:
 
     @instruction
     def sload_(self, global_state):
+        global keccak_function_manager
+        
         state = global_state.mstate
         index = state.stack.pop()
         logging.debug("Storage access at index " + str(index))
 
         try:
             index = util.get_concrete_int(index)
+            return self._sload_helper(global_state, index)
+
         except AttributeError:
-            is_keccak = keccak_function_manager.is_keccac(index)
-            if not is_keccak:
+            if not keccak_function_manager.is_keccak(index):
                 return self._sload_helper(global_state, str(index))
 
             storage_keys = global_state.environment.active_account.storage.keys()
-            keccak_keys = list(filter(keccak_function_manager.is_keccac, storage_keys))
+            keccak_keys = list(filter(keccak_function_manager.is_keccak, storage_keys))
 
             results = []
             constraints = []
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
-
                 constraints.append((keccak_key, key_argument == index_argument))
 
             for (keccak_key, constraint) in constraints:
                 if constraint in state.constraints:
                     results += self._sload_helper(global_state, keccak_key)
-
             if len(results) > 0:
                 return results
 
             for (keccak_key, constraint) in constraints:
                 results += self._sload_helper(copy(global_state), keccak_key, [constraint])
-
             if len(results) > 0:
                 return results
+            
             return self._sload_helper(global_state, str(index))
 
-        return self._sload_helper(global_state, index)
 
     def _sload_helper(self, global_state, index, constraints=None):
         try:
@@ -780,13 +780,13 @@ class Instruction:
         global_state.mstate.stack.append(data)
         return [global_state]
 
-    def _get_constraints(self, keccac_keys, this_key, argument):
+    def _get_constraints(self, keccak_keys, this_key, argument):
         global keccak_function_manager
-        for keccac_key in keccac_keys:
-            if keccac_key == this_key:
+        for keccak_key in keccak_keys:
+            if keccak_key == this_key:
                 continue
-            keccac_argument = keccak_function_manager.get_argument(keccac_key)
-            yield keccac_argument != argument
+            keccak_argument = keccak_function_manager.get_argument(keccak_key)
+            yield keccak_argument != argument
 
     @instruction
     def sstore_(self, global_state):
@@ -800,12 +800,12 @@ class Instruction:
             index = util.get_concrete_int(index)
             return self._sstore_helper(global_state, index, value)
         except AttributeError:
-            is_keccak = keccak_function_manager.is_keccac(index)
+            is_keccak = keccak_function_manager.is_keccak(index)
             if not is_keccak:
                 return self._sstore_helper(global_state, str(index), value)
 
             storage_keys = global_state.environment.active_account.storage.keys()
-            keccak_keys = filter(keccak_function_manager.is_keccac, storage_keys)
+            keccak_keys = filter(keccak_function_manager.is_keccak, storage_keys)
 
             solver = Solver()
             solver.set(timeout=1000)
