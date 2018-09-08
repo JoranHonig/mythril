@@ -748,6 +748,7 @@ class Instruction:
 
             results = []
             constraints = []
+
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
@@ -765,7 +766,6 @@ class Instruction:
                 return results
             
             return self._sload_helper(global_state, str(index))
-
 
     def _sload_helper(self, global_state, index, constraints=None):
         try:
@@ -809,8 +809,10 @@ class Instruction:
 
             solver = Solver()
             solver.set(timeout=1000)
+
             results = []
             new = False
+
             for keccak_key in keccak_keys:
                 key_argument = keccak_function_manager.get_argument(keccak_key)
                 index_argument = keccak_function_manager.get_argument(index)
@@ -828,12 +830,10 @@ class Instruction:
                     solver.reset()
 
             if new:
-                # pass
                 results += self._sstore_helper(copy(global_state), str(index), value)
             if len(results) > 0:
                 return results
-
-        return self._sstore_helper(global_state, str(index), value)
+            return self._sstore_helper(global_state, str(index), value)
 
     def _sstore_helper(self, global_state, index, value, constraint=None):
         try:
@@ -841,8 +841,8 @@ class Instruction:
             global_state.accounts[
                 global_state.environment.active_account.address] = global_state.environment.active_account
 
-
-            global_state.environment.active_account.storage[index] = value if not isinstance(value, ExprRef) else simplify(value)
+            global_state.environment.active_account.storage[index] =\
+                value if not isinstance(value, ExprRef) else simplify(value)
         except KeyError:
             logging.debug("Error writing to storage: Invalid index")
 
