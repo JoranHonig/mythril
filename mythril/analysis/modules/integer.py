@@ -80,6 +80,7 @@ def _check_integer_overflow(statespace, state, node):
     constraint = Or(And(ULT(expr, op0), op1 != 0), And(ULT(expr, op1), op0 != 0))
     model = _try_constraints(node.constraints, [constraint])
     # if 'calldata_' in str(expr):
+    #     print("====")
     #     print(expr)
 
     if model is None:
@@ -90,7 +91,6 @@ def _check_integer_overflow(statespace, state, node):
         return issues
 
     # Build issue
-    print(expr)
     issue = Issue(node.contract_name, node.function_name, instruction['address'], "Integer Overflow", "Warning")
 
     issue.description = "A possible integer overflow exists in the function `{}`.\n" \

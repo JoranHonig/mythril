@@ -751,12 +751,13 @@ class Instruction:
 
                 constraints.append((keccak_key, key_argument == index_argument))
 
-            # for (keccak_key, constraint) in constraints:
-            #     if constraint not in state.constraints:
-            #         continue
-            #     results += self._sload_helper(global_state, keccak_key)
-            # if len(results) > 0:
-            #     return results
+            for (keccak_key, constraint) in constraints:
+                if constraint in state.constraints:
+                    results += self._sload_helper(global_state, keccak_key)
+
+            if len(results) > 0:
+                return results
+
             for (keccak_key, constraint) in constraints:
                 results += self._sload_helper(copy(global_state), keccak_key, [constraint])
 
@@ -764,7 +765,7 @@ class Instruction:
                 return results
             return self._sload_helper(global_state, str(index))
 
-        return self._sload_helper(global_state, str(index))
+        return self._sload_helper(global_state, index)
 
     def _sload_helper(self, global_state, index, constraints=None):
         try:
@@ -815,7 +816,7 @@ class Instruction:
                 index_argument = keccak_function_manager.get_argument(index)
 
                 if is_true(key_argument == index_argument):
-                    return self._sstore_helper(copy(global_state), keccak_key, value)
+                    return self._sstore_helper(copy(global_state), keccak_key, value, key_argument == index_argument)
 
                 results += self._sstore_helper(copy(global_state), keccak_key, value, key_argument == index_argument)
 
@@ -840,7 +841,8 @@ class Instruction:
             global_state.accounts[
                 global_state.environment.active_account.address] = global_state.environment.active_account
 
-            global_state.environment.active_account.storage[index] = value
+
+            global_state.environment.active_account.storage[index] = value if not isinstance(value, ExprRef) else simplify(value)
         except KeyError:
             logging.debug("Error writing to storage: Invalid index")
 
