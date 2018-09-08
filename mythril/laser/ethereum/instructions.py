@@ -2,23 +2,24 @@ import binascii
 import logging
 from copy import copy, deepcopy
 
-import ethereum.opcodes as opcodes
 from ethereum import utils
 from z3 import Extract, UDiv, simplify, Concat, ULT, UGT, BitVecNumRef, Not, \
-    is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, sat, is_true
-from z3 import BitVecVal, If, BoolRef, Or
+    is_false, is_expr, ExprRef, URem, SRem, BitVec, Solver, is_true, BitVecVal, If, BoolRef, Or
 
 import mythril.laser.ethereum.util as helper
 from mythril.laser.ethereum import util
 from mythril.laser.ethereum.call import get_call_parameters
-from mythril.laser.ethereum.state import GlobalState, MachineState, Environment, CalldataType
+from mythril.laser.ethereum.state import GlobalState, CalldataType
 import mythril.laser.ethereum.natives as natives
-from mythril.laser.ethereum.transaction import MessageCallTransaction, TransactionEndSignal, TransactionStartSignal, ContractCreationTransaction
+from mythril.laser.ethereum.transaction import MessageCallTransaction, TransactionStartSignal, ContractCreationTransaction
 from mythril.laser.ethereum.keccak import KeccakFunctionManager
+
+
 TT256 = 2 ** 256
 TT256M1 = 2 ** 256 - 1
 
 keccak_function_manager: KeccakFunctionManager = KeccakFunctionManager()
+
 
 class StackUnderflowException(Exception):
     pass
