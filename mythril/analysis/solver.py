@@ -1,4 +1,4 @@
-from z3 import Solver, simplify, sat, unknown, unsat
+from z3 import Solver, simplify, sat, unknown
 from mythril.exceptions import UnsatError
 import logging
 
@@ -8,7 +8,6 @@ def get_model(constraints):
 
     for constraint in constraints:
         s.add(constraint)
-
     result = s.check()
     if result == sat:
         return s.model()
