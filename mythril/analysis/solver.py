@@ -4,7 +4,7 @@ import logging
 
 def get_model(constraints):
     s = Solver()
-    s.set("timeout", 100000)
+    s.set("timeout", 1000000)
 
     for constraint in constraints:
         s.add(constraint)

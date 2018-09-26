@@ -28,7 +28,7 @@ class LaserEVM:
     def __init__(self, accounts, dynamic_loader=None, max_depth=float('inf'), execution_timeout=60, create_timeout=10,
                  strategy=DepthFirstSearchStrategy):
         world_state = WorldState()
-        world_state.accounts = accounts
+        # world_state.accounts = accounts
         # this sets the initial world state
         self.world_state = world_state
         self.open_states = [world_state]
@@ -75,12 +75,16 @@ class LaserEVM:
 
             # Reset code coverage
             self.coverage = {}
-            self.time = datetime.now()
-            logging.info("Starting message call transaction")
-            execute_message_call(self, created_account.address)
+            for i in range(3):
+                coverage = 0
+                for _, cv in self.coverage.items():
+                    coverage = reduce(lambda sum_, val: sum_ + 1 if val else sum_, cv[1]) / float(cv[0]) * 100
+                # if coverage >= 90:
+                #     break
+                self.time = datetime.now()
+                logging.info("Starting message call transaction, iteration: {} with initial coverage of {}".format(i, coverage))
+                execute_message_call(self, created_account.address)
 
-            self.time = datetime.now()
-            execute_message_call(self, created_account.address)
 
         logging.info("Finished symbolic execution")
         logging.info("%d nodes, %d edges, %d total states", len(self.nodes), len(self.edges), self.total_states)
@@ -166,11 +170,14 @@ class LaserEVM:
     def _measure_coverage(self, global_state):
         code = global_state.environment.code.bytecode
         number_of_instructions = len(global_state.environment.code.instruction_list)
+        number_of_non_instructions = \
+            len(list(filter(lambda instruction: instruction['opcode'] == "JUMPDEST", global_state.environment.code.instruction_list)))
         instruction_index = global_state.mstate.pc
 
         if code not in self.coverage.keys():
-            self.coverage[code] = [number_of_instructions, [False]*number_of_instructions]
-
+            icov = [instruction['opcode'] == "JUMPDEST" for instruction in global_state.environment.code.instruction_list]
+            # self.coverage[code] = [number_of_instructions, [False] * number_of_instructions]
+            self.coverage[code] = [number_of_instructions, icov]
         self.coverage[code][1][instruction_index] = True
 
     def manage_cfg(self, opcode, new_states):
@@ -228,7 +235,7 @@ class LaserEVM:
             environment.active_function_name = disassembly.addr_to_func[address]
             new_node.flags |= NodeFlags.FUNC_ENTRY
 
-            logging.info(
+            logging.debug(
                 "- Entering function " + environment.active_account.contract_name + ":" + new_node.function_name)
         elif address == 0:
             environment.active_function_name = "fallback"

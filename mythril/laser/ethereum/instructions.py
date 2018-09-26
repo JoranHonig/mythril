@@ -804,6 +804,7 @@ class Instruction:
 
         try:
             index = util.get_concrete_int(index)
+
             return self._sstore_helper(global_state, index, value)
         except AttributeError:
             is_keccak = keccak_function_manager.is_keccak(index)

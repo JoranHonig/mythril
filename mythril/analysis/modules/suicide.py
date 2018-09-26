@@ -58,6 +58,8 @@ def _analyze_state(state, node):
             not_creator_constraints.append(Not(Extract(159, 0, transaction.caller) == Extract(159, 0, creator)))
             not_creator_constraints.append(Not(Extract(159, 0, transaction.caller) == 0))
 
+    if len(state.world_state.transaction_sequence) >= 3:
+        print("whoo")
     try:
         model = solver.get_model(node.constraints + not_creator_constraints)
 

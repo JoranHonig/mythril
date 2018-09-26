@@ -25,7 +25,7 @@ def execute(statespace):
     logging.debug("Executing module: INTEGER")
 
     issues = []
-
+    return []
     for k in statespace.nodes:
         node = statespace.nodes[k]
 

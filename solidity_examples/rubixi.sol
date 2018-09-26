@@ -26,8 +26,8 @@ contract Rubixi {
         Participant[] private participants;
 
         //Fallback function
-        function() {
-                init();
+        function() payable {
+            init();
         }
 
         //init function run on fallback
@@ -76,77 +76,4 @@ contract Rubixi {
                 collectedFees = 0;
         }
 
-        function collectFeesInEther(uint _amt) onlyowner {
-                _amt *= 1 ether;
-                if (_amt > collectedFees) collectAllFees();
-
-                if (collectedFees == 0) throw;
-
-                creator.send(_amt);
-                collectedFees -= _amt;
-        }
-
-        function collectPercentOfFees(uint _pcent) onlyowner {
-                if (collectedFees == 0 || _pcent > 100) throw;
-
-                uint feesToCollect = collectedFees / 100 * _pcent;
-                creator.send(feesToCollect);
-                collectedFees -= feesToCollect;
-        }
-
-        //Functions for changing variables related to the contract
-        function changeOwner(address _owner) onlyowner {
-                creator = _owner;
-        }
-
-        function changeMultiplier(uint _mult) onlyowner {
-                if (_mult > 300 || _mult < 120) throw;
-
-                pyramidMultiplier = _mult;
-        }
-
-        function changeFeePercentage(uint _fee) onlyowner {
-                if (_fee > 10) throw;
-
-                feePercent = _fee;
-        }
-
-        //Functions to provide information to end-user using JSON interface or other interfaces
-        function currentMultiplier() constant returns(uint multiplier, string info) {
-                multiplier = pyramidMultiplier;
-                info = 'This multiplier applies to you as soon as transaction is received, may be lowered to hasten payouts or increased if payouts are fast enough. Due to no float or decimals, multiplier is x100 for a fractional multiplier e.g. 250 is actually a 2.5x multiplier. Capped at 3x max and 1.2x min.';
-        }
-
-        function currentFeePercentage() constant returns(uint fee, string info) {
-                fee = feePercent;
-                info = 'Shown in % form. Fee is halved(50%) for amounts equal or greater than 50 ethers. (Fee may change, but is capped to a maximum of 10%)';
-        }
-
-        function currentPyramidBalanceApproximately() constant returns(uint pyramidBalance, string info) {
-                pyramidBalance = balance / 1 ether;
-                info = 'All balance values are measured in Ethers, note that due to no decimal placing, these values show up as integers only, within the contract itself you will get the exact decimal value you are supposed to';
-        }
-
-        function nextPayoutWhenPyramidBalanceTotalsApproximately() constant returns(uint balancePayout) {
-                balancePayout = participants[payoutOrder].payout / 1 ether;
-        }
-
-        function feesSeperateFromBalanceApproximately() constant returns(uint fees) {
-                fees = collectedFees / 1 ether;
-        }
-
-        function totalParticipants() constant returns(uint count) {
-                count = participants.length;
-        }
-
-        function numberOfParticipantsWaitingForPayout() constant returns(uint count) {
-                count = participants.length - payoutOrder;
-        }
-
-        function participantDetails(uint orderInPyramid) constant returns(address Address, uint Payout) {
-                if (orderInPyramid <= participants.length) {
-                        Address = participants[orderInPyramid].etherAddress;
-                        Payout = participants[orderInPyramid].payout / 1 ether;
-                }
-        }
 }
