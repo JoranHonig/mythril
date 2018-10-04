@@ -79,25 +79,15 @@ class LaserEVM:
             self.coverage = {}
             for i in range(3):
                 coverage = 0
-                acc = None
-                for a, cv in self.coverage.items():
+                for _, cv in self.coverage.items():
                     coverage = reduce(lambda sum_, val: sum_ + 1 if val else sum_, cv[1]) / float(cv[0]) * 100
-                    acc = a
-
                 if coverage >= 95:
                     break
 
                 self.time = datetime.now()
                 logging.info("Starting message call transaction, iteration: {} with initial coverage of {}".format(i, coverage))
+                self._remove_clean()
                 logging.info("Amount of open states: {}".format(len(self.open_states)))
-                count = 0
-                for state in self.open_states:
-                    for add, account in state.accounts.items():
-                        if account.storage.dirty:
-                            count += 1
-                            account.storage.dirty = False
-
-                logging.info("Amount of open states: {}".format(count))
 
                 execute_message_call(self, created_account.address)
                 for _, cv in self.coverage.items():
@@ -105,22 +95,23 @@ class LaserEVM:
                 logging.info(
                     "Finished message call transaction, iteration: {} with final coverage of {}".format(i, coverage))
 
-            # logging.info("Amount of open states: {}".format(len(self.open_states)))
-            # count = 0
-            # for state in self.open_states:
-            #     for add, account in state.accounts.items():
-            #         if account.storage.dirty:
-            #             count += 1
-            #             account.storage.dirty = False
-            #
-            # logging.info("Amount of modified open states: {}".format(count))
-            # execute_message_call(self, created_account.address)
+            self._remove_clean()
+            logging.info("Amount of open states: {}".format(len(self.open_states)))
+            execute_message_call(self, created_account.address)
 
         logging.info("Finished symbolic execution")
         logging.info("%d nodes, %d edges, %d total states", len(self.nodes), len(self.edges), self.total_states)
         for code, coverage in self.coverage.items():
             cov = reduce(lambda sum_, val: sum_ + 1 if val else sum_, coverage[1]) / float(coverage[0]) * 100
             logging.info("Achieved {} coverage for code: {}".format(cov, code))
+
+    def _remove_clean(self):
+        for state in self.open_states:
+            for key, account in state.accounts.items():
+                if account.storage.dirty:
+                    account.storage.dirty = False
+                else:
+                    self.open_states.remove(state)
 
     def exec(self, create=False):
         for global_state in self.strategy:
