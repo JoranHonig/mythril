@@ -49,7 +49,7 @@ def get_callee_address(global_state:GlobalState, dynamic_loader: DynLoader, symb
     try:
         callee_address = hex(util.get_concrete_int(symbolic_to_address))
     except AttributeError:
-        logging.info("Symbolic call encountered")
+        logging.debug("Symbolic call encountered")
 
         match = re.search(r'storage_(\d+)', str(simplify(symbolic_to_address)))
         logging.debug("CALL to: " + str(simplify(symbolic_to_address)))
@@ -89,7 +89,7 @@ def get_callee_account(global_state, callee_address, dynamic_loader):
         return global_state.accounts[callee_address]
     except KeyError:
         # We have a valid call address, but contract is not in the modules list
-        logging.info("Module with address " + callee_address + " not loaded.")
+        logging.debug("Module with address " + callee_address + " not loaded.")
 
     if dynamic_loader is None:
         raise ValueError()

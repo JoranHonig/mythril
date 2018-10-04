@@ -1,7 +1,10 @@
 from z3 import BitVec, BitVecVal, Solver, ExprRef, sat
+from mythril.disassembler.disassembly import Disassembly
 from copy import copy, deepcopy
 from enum import Enum
 from random import randint
+
+from mythril.laser.ethereum.evm_exceptions import StackOverflowException, StackUnderflowException
 
 
 class CalldataType(Enum):
@@ -13,7 +16,7 @@ class Storage:
     """
     Storage class represents the storage of an Account
     """
-    def __init__(self, concrete=False, address=None, dynamic_loader=None):
+    def __init__(self, concrete=False, address=None, dynamic_loader=None, dirty=False):
         """
         Constructor for Storage
         :param concrete: bool indicating whether to interpret uninitialized storage as concrete versus symbolic
@@ -22,6 +25,8 @@ class Storage:
         self.concrete = concrete
         self.dynld = dynamic_loader
         self.address = address
+
+        self.dirty = dirty
 
     def __getitem__(self, item):
         try:
@@ -39,10 +44,12 @@ class Storage:
         return self._storage[item]
 
     def __setitem__(self, key, value):
+        self.dirty = True
         self._storage[key] = value
 
     def keys(self):
         return self._storage.keys()
+
 
 class Account:
     """
@@ -59,13 +66,15 @@ class Account:
         :param concrete_storage: Interpret storage as concrete
         """
         self.nonce = 0
-        self.code = code
+        self.code = code or Disassembly("")
         self.balance = balance if balance else BitVec("balance", 256)
         self.storage = Storage(concrete_storage, address=address, dynamic_loader=dynamic_loader)
 
         # Metadata
         self.address = address
         self.contract_name = contract_name
+
+        self.deleted = False
 
     def __str__(self):
         return str(self.as_dict)
@@ -124,6 +133,56 @@ class Environment:
                     calldata_type=self.calldata_type)
 
 
+class MachineStack(list):
+    """
+    Defines EVM stack, overrides the default list to handle overflows
+    """
+    STACK_LIMIT = 1024
+
+    def __init__(self, default_list=[]):
+        super(MachineStack, self).__init__(default_list)
+
+    def append(self, element):
+        """
+        :param element: element to be appended to the list
+        :function: appends the element to list if the size is less than STACK_LIMIT, else throws an error
+        """
+        if super(MachineStack, self).__len__() >= self.STACK_LIMIT:
+            raise StackOverflowException("Reached the EVM stack limit of {}, you can't append more "
+                                         "elements".format(self.STACK_LIMIT))
+        super(MachineStack, self).append(element)
+
+    def pop(self, index=-1):
+        """
+        :param index:index to be popped, same as the list() class.
+        :returns popped value
+        :function: same as list() class but throws StackUnderflowException for popping from an empty list
+        """
+
+        try:
+            return super(MachineStack, self).pop(index)
+        except IndexError:
+            raise StackUnderflowException("Trying to pop from an empty stack")
+
+    def __getitem__(self, item):
+        try:
+            return super(MachineStack, self).__getitem__(item)
+        except IndexError:
+            raise StackUnderflowException("Trying to access a stack element which doesn't exist")
+
+    def __add__(self, other):
+        """
+        Implement list concatenation if needed
+        """
+        raise NotImplementedError('Implement this if needed')
+
+    def __iadd__(self, other):
+        """
+        Implement list concatenation if needed
+        """
+        raise NotImplementedError('Implement this if needed')
+
+
 class MachineState:
     """
     MachineState represents current machine state also referenced to as \mu
@@ -131,7 +190,7 @@ class MachineState:
     def __init__(self, gas):
         """ Constructor for machineState """
         self.pc = 0
-        self.stack = []
+        self.stack = MachineStack()
         self.memory = []
         self.gas = gas
         self.constraints = []
@@ -156,7 +215,7 @@ class MachineState:
     def pop(self, amount=1):
         """ Pops amount elements from the stack"""
         if amount >= len(self.stack):
-            raise IndexError()
+            raise StackUnderflowException
         values = self.stack[-amount:][::-1]
         del self.stack[-amount:]
 

@@ -2,6 +2,7 @@ import logging
 from mythril.laser.ethereum.state import WorldState
 from mythril.laser.ethereum.transaction import TransactionStartSignal, TransactionEndSignal, \
     ContractCreationTransaction
+from mythril.laser.ethereum.evm_exceptions import StackUnderflowException
 from mythril.laser.ethereum.instructions import Instruction
 from mythril.laser.ethereum.cfg import NodeFlags, Node, Edge, JumpType
 from mythril.laser.ethereum.strategy.basic import DepthFirstSearchStrategy
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from copy import copy
 from mythril.laser.ethereum.transaction import execute_contract_creation, execute_message_call
 from functools import reduce
+from mythril.laser.ethereum.evm_exceptions import VmException
 
 
 class SVMError(Exception):
@@ -77,14 +79,42 @@ class LaserEVM:
             self.coverage = {}
             for i in range(3):
                 coverage = 0
-                for _, cv in self.coverage.items():
+                acc = None
+                for a, cv in self.coverage.items():
                     coverage = reduce(lambda sum_, val: sum_ + 1 if val else sum_, cv[1]) / float(cv[0]) * 100
-                # if coverage >= 90:
-                #     break
+                    acc = a
+
+                if coverage >= 95:
+                    break
+
                 self.time = datetime.now()
                 logging.info("Starting message call transaction, iteration: {} with initial coverage of {}".format(i, coverage))
-                execute_message_call(self, created_account.address)
+                logging.info("Amount of open states: {}".format(len(self.open_states)))
+                count = 0
+                for state in self.open_states:
+                    for add, account in state.accounts.items():
+                        if account.storage.dirty:
+                            count += 1
+                            account.storage.dirty = False
 
+                logging.info("Amount of open states: {}".format(count))
+
+                execute_message_call(self, created_account.address)
+                for _, cv in self.coverage.items():
+                    coverage = reduce(lambda sum_, val: sum_ + 1 if val else sum_, cv[1]) / float(cv[0]) * 100
+                logging.info(
+                    "Finished message call transaction, iteration: {} with final coverage of {}".format(i, coverage))
+
+            # logging.info("Amount of open states: {}".format(len(self.open_states)))
+            # count = 0
+            # for state in self.open_states:
+            #     for add, account in state.accounts.items():
+            #         if account.storage.dirty:
+            #             count += 1
+            #             account.storage.dirty = False
+            #
+            # logging.info("Amount of modified open states: {}".format(count))
+            # execute_message_call(self, created_account.address)
 
         logging.info("Finished symbolic execution")
         logging.info("%d nodes, %d edges, %d total states", len(self.nodes), len(self.edges), self.total_states)
@@ -124,6 +154,10 @@ class LaserEVM:
         try:
             self._measure_coverage(global_state)
             new_global_states = Instruction(op_code, self.dynamic_loader).evaluate(global_state)
+
+        except VmException as e:
+            logging.debug("Encountered a VmException, ending path: `{}`".format(str(e)))
+            new_global_states = []
 
         except TransactionStartSignal as e:
             # Setup new global state
@@ -223,9 +257,9 @@ class LaserEVM:
                     new_node.flags |= NodeFlags.CALL_RETURN
                 else:
                     new_node.flags |= NodeFlags.FUNC_ENTRY
-            except IndexError:
+            except StackUnderflowException:
                 new_node.flags |= NodeFlags.FUNC_ENTRY
-        address = state.environment.code.instruction_list[state.mstate.pc - 1]['address']
+        address = state.environment.code.instruction_list[state.mstate.pc]['address']
 
         environment = state.environment
         disassembly = environment.code
