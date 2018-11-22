@@ -43,9 +43,10 @@ def get_detection_modules(entrypoint, include_modules=()):
 
     else:
         for module_name in include_modules:
-            module = importlib.import_module(module_name, modules)
+                module = importlib.import_module(module_name, modules)
+                if module.__name__ != "base" and module.detector.entrypoint == entrypoint:
 
-            _modules.append(module)
+                    _modules.append(module)
 
     logging.info("Found %s detection modules", len(_modules))
     return _modules
@@ -61,4 +62,8 @@ def fire_lasers(statespace, module_names=()):
         logging.info("Executing " + module.detector.name)
         issues += module.detector.execute(statespace)
 
+    for module in get_detection_modules(
+        entrypoint="callback", include_modules=module_names
+    ):
+        issues += module.detector.issues
     return issues

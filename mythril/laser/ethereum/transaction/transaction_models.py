@@ -121,6 +121,8 @@ class MessageCallTransaction(BaseTransaction):
         )
 
     def end(self, global_state: GlobalState, return_data=None, revert=False) -> None:
+        print("ENDING")
+        print(global_state.get_current_instruction())
         self.return_data = return_data
         raise TransactionEndSignal(global_state, revert)
 

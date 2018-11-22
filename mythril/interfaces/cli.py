@@ -155,7 +155,7 @@ def main():
     options.add_argument(
         "--max-depth",
         type=int,
-        default=22,
+        default=35,
         help="Maximum recursion depth for symbolic execution",
     )
 

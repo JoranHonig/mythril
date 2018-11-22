@@ -152,6 +152,8 @@ def get_call_data(
     :param memory_size: Size
     :return: Tuple containing: call_data array from memory or empty array if symbolic, type found
     """
+    # print("MEMORY SIZE:")
+    # print(memory_size)
     state = global_state.mstate
     transaction_id = "{}_internalcall".format(global_state.current_transaction.id)
     try:
@@ -180,6 +182,6 @@ def get_call_data(
     except TypeError:
         logging.debug("Unsupported symbolic calldata offset")
         call_data_type = CalldataType.SYMBOLIC
-        call_data = Calldata("{}_internalcall".format(transaction_id))
+        call_data = Calldata("{}_internalcall".format(global_state.current_transaction.id))
 
     return call_data, call_data_type

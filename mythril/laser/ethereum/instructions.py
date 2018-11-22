@@ -821,14 +821,15 @@ class Instruction:
     def mload_(self, global_state: GlobalState) -> List[GlobalState]:
         state = global_state.mstate
         op0 = state.stack.pop()
-
-        logging.debug("MLOAD[" + str(op0) + "]")
+        if isinstance(op0, ExprRef):
+            op0 = simplify(op0)
+        # logging.debug("MLOAD[" + str(op0) + "]")
 
         try:
             offset = util.get_concrete_int(op0)
         except TypeError:
             logging.debug("Can't MLOAD from symbolic index")
-            data = global_state.new_bitvec("mem[" + str(simplify(op0)) + "]", 256)
+            data = global_state.new_bitvec("mem[" + "b" + "]", 256)
             state.stack.append(data)
             return [global_state]
         try:
@@ -838,7 +839,7 @@ class Instruction:
             # TODO: Handle this properly
             data = state.memory[offset]
 
-        logging.debug("Load from memory[" + str(offset) + "]: " + str(data))
+        # logging.debug("Load from memory[" + str(offset) + "]: " + str(data))
 
         state.stack.append(data)
         return [global_state]
